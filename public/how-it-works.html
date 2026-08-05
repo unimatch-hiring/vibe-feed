@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the ranking works — Vibe Feed</title>
+<meta name="description" content="Cosine similarity, centroids and the agentic approach to ranking a feed — interactive.">
+<link rel="icon" href="./icon.svg">
+<style>
+  :root {
+    --ink:#111318; --ink-2:#3f454f; --mute:#6b7280;
+    --bg:#fcfbf9; --card:#fff; --rule:#e5e1d9; --rule-soft:#f1ede6;
+    --cos:#4a3fd4; --cos-bg:#eeecfb;
+    --cen:#1f7a52; --cen-bg:#e7f3ec;
+    --agt:#b0761c; --agt-bg:#fbf3e3;
+    --neg:#a03828; --neg-bg:#f9ebe8;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#eceae5; --ink-2:#b6b3ac; --mute:#87847d; --bg:#131418; --card:#1b1d22;
+      --rule:#2a2d34; --rule-soft:#22242a; --cos:#9c95f5; --cos-bg:#22204a;
+      --cen:#6fbc94; --cen-bg:#16281f; --agt:#d9a55f; --agt-bg:#2a2317;
+      --neg:#e08a7a; --neg-bg:#2b1c19; }
+  }
+  :root[data-theme="dark"] { --ink:#eceae5; --ink-2:#b6b3ac; --mute:#87847d; --bg:#131418;
+    --card:#1b1d22; --rule:#2a2d34; --rule-soft:#22242a; --cos:#9c95f5; --cos-bg:#22204a;
+    --cen:#6fbc94; --cen-bg:#16281f; --agt:#d9a55f; --agt-bg:#2a2317;
+    --neg:#e08a7a; --neg-bg:#2b1c19; }
+  :root[data-theme="light"] { --ink:#111318; --ink-2:#3f454f; --mute:#6b7280; --bg:#fcfbf9;
+    --card:#fff; --rule:#e5e1d9; --rule-soft:#f1ede6; --cos:#4a3fd4; --cos-bg:#eeecfb;
+    --cen:#1f7a52; --cen-bg:#e7f3ec; --agt:#b0761c; --agt-bg:#fbf3e3;
+    --neg:#a03828; --neg-bg:#f9ebe8; }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:50rem;margin:0 auto;padding:2.25rem 1.25rem 6rem;
+    display:flex;flex-direction:column;gap:3rem}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+  .back{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--mute);text-decoration:none}
+  .back:hover{color:var(--ink-2)}
+  .lang{display:inline-flex;gap:2px;padding:2px;background:var(--rule-soft);border-radius:6px}
+  .lang button{appearance:none;border:0;background:transparent;font:inherit;
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;padding:.24rem .55rem;
+    border-radius:4px;color:var(--mute);cursor:pointer;transition:background .12s,color .12s}
+  .lang button[aria-pressed="true"]{background:var(--card);color:var(--ink);font-weight:700;
+    box-shadow:0 1px 2px rgb(0 0 0 / .06)}
+
+  header{border-bottom:2px solid var(--ink);padding-bottom:1.1rem;
+    display:flex;flex-direction:column;gap:.7rem}
+  h1{margin:0;font-size:clamp(1.7rem,4.5vw,2.3rem);line-height:1.1;
+    letter-spacing:-.022em;text-wrap:balance}
+  .dek{margin:0;color:var(--ink-2);max-width:60ch}
+
+  section{display:flex;flex-direction:column;gap:1rem}
+  h2{margin:0;font-size:1.3rem;letter-spacing:-.012em;display:flex;
+    align-items:baseline;gap:.55rem}
+  h2 .num{font-family:var(--mono);font-size:.8rem;font-weight:400;color:var(--mute)}
+  h3{margin:.5rem 0 0;font-size:.95rem}
+  p{margin:0;color:var(--ink-2)}
+  p.tight{font-size:.93rem}
+  strong{color:var(--ink)}
+
+  .demo{background:var(--card);border:1px solid var(--rule);border-radius:5px;overflow:hidden}
+  .demo__stage{padding:1.1rem;display:flex;flex-direction:column;gap:.9rem;align-items:center}
+  .demo__foot{border-top:1px solid var(--rule);background:var(--rule-soft);
+    padding:.7rem 1rem;font-family:var(--mono);font-size:.76rem;
+    color:var(--ink-2);font-variant-numeric:tabular-nums;line-height:1.7}
+  .demo__hint{font-family:var(--mono);font-size:.67rem;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--mute);text-align:center}
+  svg{max-width:100%;height:auto;display:block;touch-action:none}
+
+  .row{display:flex;gap:.45rem;flex-wrap:wrap;justify-content:center}
+  button{appearance:none;font:inherit;font-size:.8rem;padding:.34rem .7rem;
+    border-radius:5px;border:1px solid var(--rule);background:var(--card);
+    color:var(--ink-2);cursor:pointer;transition:border-color .12s,color .12s,background .12s}
+  button:hover{border-color:var(--ink-2);color:var(--ink)}
+  button:focus-visible{outline:2px solid var(--cos);outline-offset:1px}
+  button.on{background:var(--cos-bg);border-color:transparent;color:var(--cos);font-weight:650}
+  button.up.on{background:var(--cen-bg);color:var(--cen)}
+  button.down.on{background:var(--neg-bg);color:var(--neg)}
+  button.go{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:650}
+
+  code{font-family:var(--mono);font-size:.88em;background:var(--cos-bg);
+    color:var(--cos);padding:.08em .3em;border-radius:3px}
+  .k-cos{color:var(--cos);font-weight:650}
+  .k-cen{color:var(--cen);font-weight:650}
+  .k-agt{color:var(--agt);font-weight:650}
+
+  .note{border-left:3px solid var(--c,var(--rule));background:var(--card);
+    border-radius:0 4px 4px 0;padding:.85rem 1rem;font-size:.93rem;color:var(--ink-2)}
+  .note--cos{--c:var(--cos)} .note--cen{--c:var(--cen)} .note--agt{--c:var(--agt)}
+  .note p{font-size:inherit}
+
+  .tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:5px}
+  table{border-collapse:collapse;width:100%;font-size:.85rem;background:var(--card)}
+  th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-family:var(--mono);font-size:.65rem;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--mute);font-weight:500;background:var(--rule-soft)}
+  tr:last-child td{border-bottom:none}
+  td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:.32rem}
+  li{font-size:.93rem;color:var(--ink-2)}
+
+  .log{font-family:var(--mono);font-size:.74rem;line-height:1.75;
+    color:var(--ink-2);white-space:pre-wrap;min-height:9.5rem;
+    background:var(--rule-soft);border-radius:4px;padding:.7rem .85rem;width:100%}
+  .log b{color:var(--agt)}
+  .log i{color:var(--mute);font-style:normal}
+
+  footer{border-top:1px solid var(--rule);padding-top:1rem;
+    font-family:var(--mono);font-size:.75rem;color:var(--mute);line-height:1.8}
+  a{color:var(--cos)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<div class="topbar">
+  <a class="back" href="./">← Vibe Feed</a>
+  <div class="lang" role="group" aria-label="Language">
+    <button id="langEn" aria-pressed="true">EN</button>
+    <button id="langRu" aria-pressed="false">RU</button>
+  </div>
+</div>
+
+<header>
+  <h1 data-i="h1"></h1>
+  <p class="dek" data-i="dek"></p>
+</header>
+
+<section>
+  <h2><span class="num">01</span> <span data-i="s1h"></span></h2>
+  <p data-i="s1p"></p>
+
+  <div class="demo">
+    <div class="demo__stage">
+      <p class="demo__hint" data-i="s1hint"></p>
+      <svg id="cosSvg" viewBox="0 0 460 300" role="img" aria-label="Two vectors and the angle between them">
+        <defs>
+          <marker id="arrCos" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="var(--cos)"/></marker>
+          <marker id="arrInk" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="var(--ink-2)"/></marker>
+        </defs>
+        <line x1="40" y1="260" x2="440" y2="260" stroke="var(--rule)"/>
+        <line x1="40" y1="260" x2="40" y2="20" stroke="var(--rule)"/>
+        <text x="446" y="264" font-size="11" fill="var(--mute)" font-family="monospace"
+              text-anchor="end" data-i="axRust"></text>
+        <text x="46" y="18" font-size="11" fill="var(--mute)" font-family="monospace"
+              data-i="axGpu"></text>
+        <path id="cosArc" fill="var(--cos-bg)"/>
+        <line x1="40" y1="260" x2="300" y2="90" stroke="var(--ink-2)"
+              stroke-width="2.5" marker-end="url(#arrInk)"/>
+        <line id="vecB" x1="40" y1="260" x2="380" y2="200" stroke="var(--cos)"
+              stroke-width="2.5" marker-end="url(#arrCos)"/>
+        <text x="306" y="86" font-size="12" fill="var(--ink-2)" font-family="monospace"
+              data-i="labProfile"></text>
+        <text id="labB" x="386" y="196" font-size="12" fill="var(--cos)" font-family="monospace"
+              data-i="labArticle"></text>
+        <circle id="handle" cx="380" cy="200" r="9" fill="var(--cos)" cursor="grab"/>
+      </svg>
+      <div class="row">
+        <button data-cos="0" data-i="pre0"></button>
+        <button data-cos="1" data-i="pre1"></button>
+        <button data-cos="2" data-i="pre2"></button>
+        <button data-cos="3" data-i="pre3"></button>
+      </div>
+    </div>
+    <div class="demo__foot" id="cosOut"></div>
+  </div>
+
+  <div class="note note--cos"><p data-i="s1note"></p></div>
+
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th data-i="thText"></th><th data-i="thVec"></th>
+        <th data-i="thCos"></th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr><td data-i="rowA"></td><td class="n">[1, 1, 0]</td><td class="n">1.00</td><td data-i="rowAn"></td></tr>
+        <tr><td data-i="rowB"></td><td class="n">[3, 1, 0]</td><td class="n k-cos">0.89</td><td data-i="rowBn"></td></tr>
+        <tr><td data-i="rowC"></td><td class="n">[0, 0, 1]</td><td class="n">0.00</td><td data-i="rowCn"></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="tight" data-i="s1tail"></p>
+</section>
+
+<section>
+  <h2><span class="num">02</span> <span data-i="s2h"></span></h2>
+  <p data-i="s2p"></p>
+
+  <div class="demo">
+    <div class="demo__stage">
+      <p class="demo__hint" data-i="s2hint"></p>
+      <svg id="cenSvg" viewBox="0 0 460 300" role="img" aria-label="Articles, the liked centroid and the profile"></svg>
+      <div class="row" id="cenBtns"></div>
+      <div class="row"><button class="go" id="cenReset" data-i="reset"></button></div>
+    </div>
+    <div class="demo__foot" id="cenOut"></div>
+  </div>
+
+  <div class="note note--cen">
+    <p data-i="s2note"></p>
+    <p style="font-family:var(--mono);font-size:.85rem;margin-top:.5rem;color:var(--ink)"
+       data-i="s2formula"></p>
+  </div>
+  <p class="tight" data-i="s2tail"></p>
+</section>
+
+<section>
+  <h2><span class="num">03</span> <span data-i="s3h"></span></h2>
+  <p data-i="s3p"></p>
+
+  <div class="demo">
+    <div class="demo__stage">
+      <p class="demo__hint" data-i="s3hint"></p>
+      <div class="log" id="agtLog"></div>
+      <div class="row">
+        <button class="go" id="agtRun" data-i="runAgent"></button>
+        <button id="agtCmp" data-i="runCos"></button>
+      </div>
+    </div>
+    <div class="demo__foot" id="agtOut"></div>
+  </div>
+
+  <div class="note note--agt"><p data-i="s3note"></p></div>
+</section>
+
+<section>
+  <h2><span class="num">04</span> <span data-i="s4h"></span></h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th data-i="colMath"></th><th data-i="colAgent"></th></tr></thead>
+      <tbody id="cmpBody"></tbody>
+    </table>
+  </div>
+  <p class="tight" data-i="s4tail"></p>
+</section>
+
+<footer>
+  <span data-i="foot1"></span><br>
+  <span data-i="foot2"></span>
+</footer>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const T = {
+    en: {
+      h1: "Three ways to solve one problem",
+      dek: "You have a feed of articles and a person with interests. The good stuff has to end up on top. Below are three mechanisms, each one you can poke at. The first two are ordinary arithmetic; the third decides for itself what to do.",
+
+      s1h: "Cosine: compare direction, not length",
+      s1p: "A text becomes a vector — literally a list of numbers. Similarity is the angle between two vectors. Smaller angle, closer meaning. Length is ignored on purpose: a 3000-word article and a one-line headline get compared fairly.",
+      s1hint: "Drag the blue dot — watch the angle and the cosine change",
+      axRust: "word “rust” →", axGpu: "↑ word “gpu”",
+      labProfile: "profile", labArticle: "article",
+      pre0: "almost aligned", pre1: "at an angle",
+      pre2: "perpendicular", pre3: "opposite",
+      s1note: "Why length must not matter. Take a vocabulary of three words — <code>rust</code>, <code>gpu</code>, <code>cake</code> — and just count occurrences:",
+      thText: "text", thVec: "vector", thCos: "cosine vs A",
+      rowA: "A — “rust and gpu”", rowAn: "itself",
+      rowB: "B — “rust rust rust gpu”", rowBn: "says “rust” 3× more, same subject",
+      rowC: "C — “cake”", rowCn: "nothing in common",
+      s1tail: "Real code uses 8192 numbers per vector instead of 3 — the idea is unchanged. This is the <strong>vector space model</strong>: the same math behind search engines, recommendations and every vector database.",
+
+      s2h: "Centroid: a profile that learns from 👍 and 👎",
+      s2p: "Average the vectors of what you liked — that average is the <span class='k-cen'>centroid</span>, and it is your taste. Average what you disliked and <strong>subtract</strong> it. The trick is called Rocchio and it is over fifty years old.",
+      s2hint: "Press 👍 and 👎 on the articles — watch the green star move",
+      reset: "reset everything",
+      s2note: "<strong>The part that matters:</strong> one 👍 moves the profile immediately. Nothing is trained, nothing is uploaded, no server involved. The whole formula:",
+      s2formula: "profile = average(liked) − 0.5 × average(disliked)",
+      s2tail: "And the weakness shows up right away. Like two <em>unrelated</em> topics and the centroid drifts into the empty space between them, so an article about just one of them scores medium instead of high. <strong>The average of two peaks is the valley between them.</strong> That is what the next part fixes.",
+
+      s3h: "Agent: it decides how to decide",
+      s3p: "The first two are <strong>deterministic</strong>: we chose the pipeline, the weights, the thresholds. One input always gives one output. An agent gets the goal and the raw material, and <span class='k-agt'>picks the method itself</span> — at runtime.",
+      s3hint: "One request, two different runs. Press “run” a few times",
+      runAgent: "run the agent", runCos: "what cosine would do",
+      s3note: "Notice two things. First, <strong>the request is phrased differently</strong>: not “sort by cosine” but “build me a personalized feed, here are the feeds”. Second, the runs <strong>do not match each other</strong>. That is not a bug, it is the nature of the approach: it picks a plan afresh each time.",
+
+      s4h: "How they differ in practice",
+      colMath: "Cosine + centroid", colAgent: "Agent",
+      s4tail: "Neither is “better” — they <strong>fail differently</strong>. The arithmetic is blind to intent; the agent is unpredictable and costs money on every refresh. That is why this project keeps the arithmetic at the bottom as a guaranteed floor and puts the model on top as an upgrade.",
+
+      foot1: "Every number on this page is computed in your browser with the same formulas used in <a href='https://github.com/unimatch-hiring/vibe-feed'>unimatch-hiring/vibe-feed</a>. The agent demo is a simulation — it shows the shape of the process and its non-determinism. No model is called.",
+      foot2: "Want to go deeper? <a href='https://developers.google.com/machine-learning/crash-course/embeddings'>Google ML Crash Course on embeddings</a> (interactive) · <a href='https://jalammar.github.io/illustrated-word2vec/'>The Illustrated Word2vec</a> (all diagrams) · <a href='https://projector.tensorflow.org/'>TensorFlow Embedding Projector</a> (rotate real embeddings in 3D)",
+
+      verdicts: ["almost the same thing", "closely related", "something in common", "unrelated", "opposites"],
+      angle: "angle", cosine: "cosine",
+      lenNote: n => `<i>the “article” arrow is ${n} px long — length does not affect cosine, only direction does</i>`,
+      coldStart: "<i>nothing selected — cold start. There is no profile, nothing to sort by, so the feed falls back to newest-first.</i>",
+      profIs: (l, hasNeg, d) => hasNeg
+        ? `profile = average(${l} 👍) − 0.5 × average(${d} 👎)`
+        : `profile = average(${l} 👍)`,
+      orderBy: "<i>order (closeness × how strongly it is about anything):</i>",
+      cenDisliked: "disliked centroid", cenProfile: "profile",
+      axRust2: "about Rust →", axGpu2: "↑ about GPU",
+      pressRun: "press “run the agent” ↑",
+      agentIntro: "<i>the agent is handed a goal and material: “here are 6 feeds and the likes — build a personalized feed, decide how yourself”</i>",
+      runNo: (n, plan, total, kept) =>
+        `run #${n}: plan <b style="color:var(--agt)">#${plan}</b> of ${total} possible, kept ${kept} articles<br><i>run it again — the plan will differ. We specified none of them.</i>`,
+      picking: n => `<i>run #${n} — the agent is choosing a plan…</i>`,
+      cosSteps: [
+        "take profile = average(likes)",
+        "compute cosine for each of 187 articles",
+        "sort descending",
+        "done: the same 187 articles, new order",
+      ],
+      cosOutcome: `cosine: <b style="color:var(--cos)">the same order on every run</b>, ~10 ms, 0 tokens<br><i>but it cannot tell “not tutorials” apart — to it, that is the same subject</i>`,
+      articles: [
+        "Rust async internals", "WebGPU compute shaders", "Rust + wgpu renderer",
+        "Sourdough at home", "Cast-iron pizza",
+      ],
+      plans: [
+        ["reading 6 feeds, 187 articles total",
+         "decision: group by topic first, then rank",
+         "calling a tool: cluster(topics=auto) → 5 clusters",
+         "user profile: 2 likes → “systems Rust”, “GPU”",
+         "dropping the “food” cluster entirely — zero overlap",
+         "sorting within the two remaining clusters by date",
+         "done: 14 articles, with a reason for each"],
+        ["reading 6 feeds, 187 articles total",
+         "different call: score every article 0–10 against the profile",
+         "187 calls is expensive → titles only, batches of 25",
+         "8 batches, mean score 3.4, above 7 → 11 articles",
+         "noticing 3 of the 11 are tutorials; the user asked for deep dives",
+         "pushing those 3 down, keeping them as “close but not it”",
+         "done: 8 articles + 3 in a separate block"],
+        ["reading 6 feeds, 187 articles total",
+         "decision: work out what the person wants, not what they clicked",
+         "hypothesis: they want practice, not release news",
+         "checking it against the likes — holds, both are deep dives",
+         "filter: drop announcements and changelogs, −41 articles",
+         "ranking the rest by depth of text, not recency",
+         "done: 12 articles, ordering justified by the hypothesis"],
+        ["reading 6 feeds, 187 articles total",
+         "writing myself some code: TF-IDF plus a cutoff",
+         "running it, looking at the output: 40 articles, noisy",
+         "not good enough — redoing it, weighting titles ×3",
+         "now 15 articles, eyeballing the top 5 — fine",
+         "adding a summary for each",
+         "done: 15 articles, method chosen and checked as I went"],
+      ],
+      cmp: [
+        ["Who picks the method", "you, up front", "the model, at runtime", 1],
+        ["Same input → same output", "always", "not guaranteed", 0],
+        ["Cost per refresh", "~0", "model calls", 0],
+        ["Latency", "milliseconds", "seconds", 0],
+        ["Works offline", "yes", "no", 0],
+        ["How you debug it", "read the formula", "read the log and hope", 0],
+        ["“articles, not tutorials”", "cannot", "can", 1],
+        ["Two unrelated interests", "averages into a valley", "sees them as a list", 1],
+        ["Explain why it is #1", "a number only", "in words", 1],
+        ["200 articles per pass", "free", "expensive", 0],
+      ],
+    },
+
+    ru: {
+      h1: "Три способа решить одну задачу",
+      dek: "Есть лента статей и человек с интересами. Надо поставить нужное наверх. Ниже — три механизма, каждый можно потрогать руками. Первые два — обычная математика, третий сам решает, что делать.",
+
+      s1h: "Косинус: сравниваем направление, а не длину",
+      s1p: "Текст превращаем в вектор — просто список чисел. Похожесть — это угол между векторами. Чем меньше угол, тем ближе смысл. Длина не важна: статья на 3000 слов и заголовок в одну строку сравниваются честно.",
+      s1hint: "Тяни синюю точку — увидишь, как меняется угол и косинус",
+      axRust: "слово «rust» →", axGpu: "↑ слово «gpu»",
+      labProfile: "профиль", labArticle: "статья",
+      pre0: "почти совпали", pre1: "под углом",
+      pre2: "перпендикулярны", pre3: "противоположны",
+      s1note: "Почему длина не должна влиять. Возьмём словарь из трёх слов — <code>rust</code>, <code>gpu</code>, <code>cake</code> — и просто посчитаем вхождения:",
+      thText: "текст", thVec: "вектор", thCos: "косинус с A",
+      rowA: "A — «rust and gpu»", rowAn: "сам с собой",
+      rowB: "B — «rust rust rust gpu»", rowBn: "«rust» втрое чаще, тема та же",
+      rowC: "C — «cake»", rowCn: "ничего общего",
+      s1tail: "В настоящем коде вектор не из 3 чисел, а из 8192 — идея та же. Это <strong>векторная модель</strong>: та же математика в поисковиках, рекомендациях и любой векторной БД.",
+
+      s2h: "Центроид: профиль, который учится на 👍 и 👎",
+      s2p: "Усредняем векторы того, что понравилось — это <span class='k-cen'>центроид</span>, он и есть твой вкус. Усредняем то, что не понравилось, и <strong>вычитаем</strong>. Приём называется Rocchio, ему больше пятидесяти лет.",
+      s2hint: "Жми 👍 и 👎 на статьях — смотри, как переезжает зелёная звезда",
+      reset: "сбросить всё",
+      s2note: "<strong>Что тут важно:</strong> одно нажатие 👍 сдвигает профиль сразу. Ничего не обучается, никуда не отправляется, сервер не нужен. Формула целиком:",
+      s2formula: "профиль = среднее(нравится) − 0.5 × среднее(не нравится)",
+      s2tail: "И сразу видно слабое место. Лайкни две <em>несвязанные</em> темы — центроид уедет в пустоту между ними, и статья про одну из них получит средний балл вместо высокого. <strong>Среднее двух пиков — это провал между ними.</strong> Дальше как раз про то, кто это лечит.",
+
+      s3h: "Агент: сам решает, как решать",
+      s3p: "Первые два способа — <strong>детерминированные</strong>: пайплайн, веса и пороги задали мы. Один вход всегда даёт один выход. Агенту же дают цель и материал, а <span class='k-agt'>способ он выбирает сам</span> — прямо во время работы.",
+      s3hint: "Один запрос — два разных прогона. Жми «запустить» несколько раз",
+      runAgent: "запустить агента", runCos: "а что сделал бы косинус",
+      s3note: "Обрати внимание на две вещи. Первое — <strong>формулировка запроса другая</strong>: не «отсортируй по косинусу», а «построй мне персонализированную ленту, вот фиды». Второе — прогоны <strong>не совпадают между собой</strong>. Это не баг, это природа подхода: он выбирает план заново каждый раз.",
+
+      s4h: "Чем они отличаются на практике",
+      colMath: "Косинус + центроид", colAgent: "Агент",
+      s4tail: "Ни один не «лучше» — они <strong>ломаются по-разному</strong>. Математика слепа к замыслу, агент непредсказуем и стоит денег на каждом обновлении. Поэтому в этом проекте математика внизу как гарантированный пол, а модель сверху как апгрейд.",
+
+      foot1: "Все числа на этой странице считаются в браузере по тем же формулам, что в <a href='https://github.com/unimatch-hiring/vibe-feed'>unimatch-hiring/vibe-feed</a>. Демо агента — имитация: показывает форму процесса и его недетерминированность, модель не вызывается.",
+      foot2: "Копнуть глубже: <a href='https://developers.google.com/machine-learning/crash-course/embeddings'>курс Google про эмбеддинги</a> (с интерактивом) · <a href='https://jalammar.github.io/illustrated-word2vec/'>The Illustrated Word2vec</a> (всё на картинках) · <a href='https://projector.tensorflow.org/'>TensorFlow Embedding Projector</a> (покрутить реальные эмбеддинги в 3D)",
+
+      verdicts: ["почти одно и то же", "близкие темы", "есть что-то общее", "не связаны", "противоположны"],
+      angle: "угол", cosine: "косинус",
+      lenNote: n => `<i>длина «статьи» ${n} px — на косинус не влияет, только направление</i>`,
+      coldStart: "<i>ничего не выбрано — холодный старт. Профиля нет, сортировать не по чему, лента идёт по свежести.</i>",
+      profIs: (l, hasNeg, d) => hasNeg
+        ? `профиль = среднее(${l} 👍) − 0.5 × среднее(${d} 👎)`
+        : `профиль = среднее(${l} 👍)`,
+      orderBy: "<i>порядок (близость × выраженность темы):</i>",
+      cenDisliked: "центроид 👎", cenProfile: "профиль",
+      axRust2: "про Rust →", axGpu2: "↑ про GPU",
+      pressRun: "нажми «запустить агента» ↑",
+      agentIntro: "<i>агенту дают цель и материал: «вот 6 фидов и лайки — построй персонализированную ленту, сам реши как»</i>",
+      runNo: (n, plan, total, kept) =>
+        `прогон #${n}: план <b style="color:var(--agt)">№${plan}</b> из ${total} возможных, оставлено ${kept} статей<br><i>запусти снова — план будет другой. Мы не задавали ни один из них.</i>`,
+      picking: n => `<i>прогон #${n} — агент выбирает план…</i>`,
+      cosSteps: [
+        "беру профиль = среднее(лайки)",
+        "считаю косинус для каждой из 187 статей",
+        "сортирую по убыванию",
+        "готово: те же 187 статей, новый порядок",
+      ],
+      cosOutcome: `косинус: <b style="color:var(--cos)">один и тот же порядок при каждом запуске</b>, ~10 мс, 0 токенов<br><i>но «не туториалы» он различить не может — для него это та же тема</i>`,
+      articles: [
+        "Rust async internals", "WebGPU compute shaders", "Rust + wgpu renderer",
+        "Домашний хлеб на закваске", "Пицца на чугунной сковороде",
+      ],
+      plans: [
+        ["читаю 6 фидов, всего 187 статей",
+         "решаю: сначала сгруппировать по темам, потом ранжировать",
+         "вызываю инструмент: cluster(topics=auto) → 5 кластеров",
+         "профиль пользователя: 2 лайка → «системный Rust», «GPU»",
+         "отбрасываю кластер «еда» целиком — ни одного пересечения",
+         "внутри двух кластеров сортирую по свежести",
+         "готово: 14 статей, объяснение по каждой"],
+        ["читаю 6 фидов, всего 187 статей",
+         "решаю иначе: сразу оценить каждую статью 0–10 по профилю",
+         "187 вызовов дорого → беру только заголовки, батчами по 25",
+         "8 батчей, средняя оценка 3.4, выше 7 — 11 статей",
+         "замечаю: 3 из 11 это туториалы, пользователь просил разборы",
+         "переоцениваю эти 3 вниз, оставляю как «похоже, но не то»",
+         "готово: 8 статей + 3 отдельным блоком"],
+        ["читаю 6 фидов, всего 187 статей",
+         "решаю: сперва понять, чего человек хочет, а не что лайкал",
+         "формулирую гипотезу: интересует практика, не новости релизов",
+         "проверяю на лайках — сходится, оба лайка это разборы",
+         "фильтр: выкидываю анонсы и changelog'и, минус 41 статья",
+         "остальное ранжирую по глубине текста, не по свежести",
+         "готово: 12 статей, порядок обоснован гипотезой"],
+        ["читаю 6 фидов, всего 187 статей",
+         "пишу себе код на ходу: TF-IDF + отсечка по порогу",
+         "запускаю, смотрю результат: 40 статей, шумно",
+         "не нравится — переделываю, добавляю вес заголовку ×3",
+         "теперь 15 статей, глазами проверяю топ-5 — ок",
+         "дописываю саммари для каждой",
+         "готово: 15 статей, метод выбран и проверен по ходу"],
+      ],
+      cmp: [
+        ["Кто выбирает метод", "ты, заранее", "модель, на ходу", 1],
+        ["Один вход → один выход", "всегда", "не гарантируется", 0],
+        ["Цена обновления ленты", "~0", "вызовы модели", 0],
+        ["Задержка", "миллисекунды", "секунды", 0],
+        ["Работает офлайн", "да", "нет", 0],
+        ["Как отлаживать", "читаешь формулу", "читаешь лог и надеешься", 0],
+        ["«статьи, но не туториалы»", "не умеет", "умеет", 1],
+        ["Два несвязанных интереса", "усредняет в провал", "видит списком", 1],
+        ["Объяснить, почему #1", "только число", "словами", 1],
+        ["200 статей за проход", "даром", "дорого", 0],
+      ],
+    },
+  };
+
+  let L = "en";
+  const t = () => T[L];
+  const fmt = (n, d = 2) => n.toFixed(d);
+
+  /* ───────── 1. cosine ───────── */
+  const OX = 40, OY = 260;
+  const svgC = document.getElementById("cosSvg");
+  const vecB = document.getElementById("vecB");
+  const arc = document.getElementById("cosArc");
+  const grip = document.getElementById("handle");
+  const labB = document.getElementById("labB");
+  const outC = document.getElementById("cosOut");
+  const A = { x: 260, y: -170 };
+  let B = { x: 340, y: -60 };
+
+  const dot = (p, q) => p.x * q.x + p.y * q.y;
+  const len = p => Math.hypot(p.x, p.y);
+  const cosOf = (p, q) => (len(p) && len(q)) ? dot(p, q) / (len(p) * len(q)) : 0;
+
+  function drawCos() {
+    vecB.setAttribute("x2", OX + B.x); vecB.setAttribute("y2", OY + B.y);
+    grip.setAttribute("cx", OX + B.x); grip.setAttribute("cy", OY + B.y);
+    labB.setAttribute("x", OX + B.x + 8); labB.setAttribute("y", OY + B.y - 6);
+
+    const c = Math.max(-1, Math.min(1, cosOf(A, B)));
+    const deg = Math.acos(c) * 180 / Math.PI;
+    const r = 62, aA = Math.atan2(A.y, A.x), aB = Math.atan2(B.y, B.x);
+    let d = aB - aA;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    const p1 = { x: OX + Math.cos(aA) * r, y: OY + Math.sin(aA) * r };
+    const p2 = { x: OX + Math.cos(aB) * r, y: OY + Math.sin(aB) * r };
+    arc.setAttribute("d", `M ${OX} ${OY} L ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} ` +
+      `A ${r} ${r} 0 0 ${d > 0 ? 1 : 0} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} Z`);
+
+    const v = t().verdicts;
+    const verdict = c > 0.95 ? v[0] : c > 0.6 ? v[1] : c > 0.2 ? v[2] : c > -0.2 ? v[3] : v[4];
+    outC.innerHTML =
+      `${t().angle} ${fmt(deg, 0)}°   ${t().cosine} <b style="color:var(--cos)">${fmt(c)}</b>   → ${verdict}<br>` +
+      t().lenNote(fmt(len(B), 0));
+  }
+
+  function grab(evt) {
+    evt.preventDefault();
+    const move = e => {
+      const p = e.touches ? e.touches[0] : e;
+      const r = svgC.getBoundingClientRect();
+      const x = (p.clientX - r.left) * (460 / r.width) - OX;
+      const y = (p.clientY - r.top) * (300 / r.height) - OY;
+      if (Math.hypot(x, y) < 26) return;
+      B = { x, y }; drawCos();
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+  grip.addEventListener("pointerdown", grab);
+  svgC.addEventListener("pointerdown", e => { if (e.target !== grip) grab(e); });
+
+  const PRESETS = [{ x: 250, y: -158 }, { x: 340, y: -60 }, { x: 200, y: 130 }, { x: -240, y: 150 }];
+  document.querySelectorAll("[data-cos]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      B = { ...PRESETS[+btn.dataset.cos] };
+      document.querySelectorAll("[data-cos]").forEach(b => b.classList.remove("on"));
+      btn.classList.add("on"); drawCos();
+    });
+  });
+
+  /* ───────── 2. centroid ───────── */
+  const POS = [[0.82, 0.20], [0.22, 0.86], [0.62, 0.64], [0.12, 0.14], [0.30, 0.05]];
+  const DISLIKE_W = 0.5, PAD = 42, W = 460, H = 300;
+  const svgN = document.getElementById("cenSvg");
+  const btnBox = document.getElementById("cenBtns");
+  const outN = document.getElementById("cenOut");
+  const vote = new Map();
+  const px = v => PAD + v * (W - PAD - 70);
+  const py = v => (H - PAD) - v * (H - PAD - 34);
+  const arts = () => t().articles.map((title, i) => ({ id: "a" + i, title, x: POS[i][0], y: POS[i][1] }));
+
+  const centroid = list => list.length ? {
+    x: list.reduce((s, a) => s + a.x, 0) / list.length,
+    y: list.reduce((s, a) => s + a.y, 0) / list.length,
+  } : null;
+
+  function drawCen() {
+    const AR = arts();
+    const liked = AR.filter(a => vote.get(a.id) === 1);
+    const disliked = AR.filter(a => vote.get(a.id) === -1);
+    const pos = centroid(liked), neg = centroid(disliked);
+    const profile = pos ? {
+      x: pos.x - (neg ? DISLIKE_W * neg.x : 0),
+      y: pos.y - (neg ? DISLIKE_W * neg.y : 0),
+    } : null;
+
+    let s = `<line x1="${PAD}" y1="${H - PAD}" x2="${W - 56}" y2="${H - PAD}" stroke="var(--rule)"/>
+      <line x1="${PAD}" y1="${H - PAD}" x2="${PAD}" y2="26" stroke="var(--rule)"/>
+      <text x="${W - 52}" y="${H - PAD + 4}" font-size="11" font-family="monospace"
+            fill="var(--mute)" text-anchor="end">${t().axRust2}</text>
+      <text x="${PAD + 5}" y="22" font-size="11" font-family="monospace"
+            fill="var(--mute)">${t().axGpu2}</text>`;
+
+    if (profile) s += `<line x1="${px(0)}" y1="${py(0)}" x2="${px(profile.x)}" y2="${py(profile.y)}"
+      stroke="var(--cen)" stroke-width="2" stroke-dasharray="4 3" opacity=".55"/>`;
+    if (pos && neg) s += `<line x1="${px(neg.x)}" y1="${py(neg.y)}" x2="${px(pos.x)}" y2="${py(pos.y)}"
+      stroke="var(--neg)" stroke-width="1.5" stroke-dasharray="3 3" opacity=".5"/>`;
+
+    // Pure cosine ignores length, and in this flat 2-D toy space that lets a weak
+    // but aligned article tie with a strong one. Multiply by the article's own
+    // length so "how strongly is this about anything" stays in the number.
+    const scored = AR.map(a => ({ a, s: profile ? cosOf(profile, a) * len(a) : 0 }))
+      .sort((p, q) => q.s - p.s);
+
+    AR.forEach(a => {
+      const v = vote.get(a.id);
+      const fill = v === 1 ? "var(--cen)" : v === -1 ? "var(--neg)" : "var(--mute)";
+      s += `<circle cx="${px(a.x)}" cy="${py(a.y)}" r="7" fill="${fill}" opacity="${v ? 1 : .42}"/>`;
+      if (v) s += `<text x="${px(a.x)}" y="${py(a.y) - 12}" font-size="13"
+        text-anchor="middle">${v === 1 ? "👍" : "👎"}</text>`;
+    });
+
+    if (neg) s += `<circle cx="${px(neg.x)}" cy="${py(neg.y)}" r="10" fill="none"
+        stroke="var(--neg)" stroke-width="2" stroke-dasharray="3 2"/>
+      <text x="${px(neg.x) + 14}" y="${py(neg.y) + 4}" font-size="10"
+        font-family="monospace" fill="var(--neg)">${t().cenDisliked}</text>`;
+    if (pos) s += `<circle cx="${px(pos.x)}" cy="${py(pos.y)}" r="10" fill="none"
+        stroke="var(--cen)" stroke-width="2" stroke-dasharray="3 2"/>`;
+    if (profile) {
+      const cx = px(profile.x), cy = py(profile.y);
+      const star = Array.from({ length: 10 }, (_, i) => {
+        const ang = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 5 : 11;
+        return `${(cx + Math.cos(ang) * rr).toFixed(1)},${(cy + Math.sin(ang) * rr).toFixed(1)}`;
+      }).join(" ");
+      s += `<polygon points="${star}" fill="var(--cen)"/>
+        <text x="${cx + 15}" y="${cy + 4}" font-size="11" font-family="monospace"
+          font-weight="700" fill="var(--cen)">${t().cenProfile}</text>`;
+    }
+    svgN.innerHTML = s;
+
+    if (!profile) { outN.innerHTML = t().coldStart; return; }
+    const top = scored.slice(0, 3).map((r, i) => `${i + 1}. ${r.a.title} — ${fmt(r.s)}`).join("<br>");
+    outN.innerHTML =
+      `${t().profIs(liked.length, !!neg, disliked.length)} = [${fmt(profile.x)}, ${fmt(profile.y)}]<br>` +
+      `${t().orderBy}<br>${top}`;
+  }
+
+  function buildVoteButtons() {
+    btnBox.innerHTML = "";
+    arts().forEach(a => {
+      const wrap = document.createElement("span");
+      wrap.style.cssText = "display:inline-flex;gap:2px;align-items:center";
+      const up = document.createElement("button");
+      up.className = "up"; up.textContent = "👍"; up.setAttribute("aria-label", "Like: " + a.title);
+      const down = document.createElement("button");
+      down.className = "down"; down.textContent = "👎"; down.setAttribute("aria-label", "Dislike: " + a.title);
+      const name = document.createElement("span");
+      name.style.cssText = "font-size:.78rem;color:var(--ink-2);margin-right:.35rem";
+      name.textContent = a.title;
+      const sync = () => {
+        up.classList.toggle("on", vote.get(a.id) === 1);
+        down.classList.toggle("on", vote.get(a.id) === -1);
+      };
+      up.onclick = () => { vote.get(a.id) === 1 ? vote.delete(a.id) : vote.set(a.id, 1); sync(); drawCen(); };
+      down.onclick = () => { vote.get(a.id) === -1 ? vote.delete(a.id) : vote.set(a.id, -1); sync(); drawCen(); };
+      sync();
+      wrap.append(up, down, name);
+      btnBox.append(wrap);
+    });
+  }
+  document.getElementById("cenReset").onclick = () => {
+    vote.clear(); buildVoteButtons(); drawCen();
+  };
+
+  /* ───────── 3. agent ───────── */
+  const logEl = document.getElementById("agtLog");
+  const outA = document.getElementById("agtOut");
+  let runNo = 0, busy = false;
+
+  function typeLines(lines, done) {
+    logEl.innerHTML = "";
+    let i = 0;
+    const step = () => {
+      if (i >= lines.length) { done && done(); return; }
+      const el = document.createElement("div");
+      el.innerHTML = i === lines.length - 1 ? `<b>▸ ${lines[i]}</b>` : `<i>▸</i> ${lines[i]}`;
+      logEl.append(el); i++;
+      setTimeout(step, 420);
+    };
+    step();
+  }
+
+  document.getElementById("agtRun").onclick = () => {
+    if (busy) return;
+    busy = true; runNo++;
+    const plans = t().plans;
+    const idx = (runNo - 1) % plans.length;
+    outA.innerHTML = t().picking(runNo);
+    typeLines(plans[idx], () => {
+      busy = false;
+      const kept = plans[idx][plans[idx].length - 1].match(/\d+/);
+      outA.innerHTML = t().runNo(runNo, idx + 1, plans.length, kept ? kept[0] : "?");
+    });
+  };
+  document.getElementById("agtCmp").onclick = () => {
+    logEl.innerHTML = t().cosSteps
+      .map((s, i, arr) => i === arr.length - 1 ? `<div><b>▸ ${s}</b></div>` : `<div><i>▸</i> ${s}</div>`)
+      .join("");
+    outA.innerHTML = t().cosOutcome;
+  };
+
+  /* ───────── i18n ───────── */
+  function render() {
+    document.documentElement.lang = L;
+    document.querySelectorAll("[data-i]").forEach(el => {
+      const v = t()[el.dataset.i];
+      if (typeof v === "string") el.innerHTML = v;
+    });
+
+    document.getElementById("cmpBody").innerHTML = t().cmp
+      .map(([label, math, agent, agentWins]) => {
+        const mc = agentWins ? "" : ' class="k-cen"';
+        const ac = agentWins ? ' class="k-agt"' : "";
+        return `<tr><td>${label}</td><td${mc}>${math}</td><td${ac}>${agent}</td></tr>`;
+      }).join("");
+
+    document.getElementById("langEn").setAttribute("aria-pressed", String(L === "en"));
+    document.getElementById("langRu").setAttribute("aria-pressed", String(L === "ru"));
+
+    buildVoteButtons();
+    drawCos();
+    drawCen();
+    typeLines([t().pressRun], () => {});
+    outA.innerHTML = t().agentIntro;
+    runNo = 0;
+  }
+
+  function setLang(next) {
+    if (next === L) return;
+    L = next;
+    try { localStorage.setItem("vibe-feed:lang", L); } catch { /* private mode */ }
+    render();
+  }
+  document.getElementById("langEn").onclick = () => setLang("en");
+  document.getElementById("langRu").onclick = () => setLang("ru");
+
+  // A remembered choice wins; otherwise follow the browser's language.
+  let initial = null;
+  try { initial = localStorage.getItem("vibe-feed:lang"); } catch { /* ignore */ }
+  if (initial !== "en" && initial !== "ru") {
+    initial = (navigator.language || "en").toLowerCase().startsWith("ru") ? "ru" : "en";
+  }
+  L = initial;
+  render();
+})();
+</script>
+</body>
+</html>

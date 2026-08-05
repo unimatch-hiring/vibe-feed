@@ -1,7 +1,57 @@
+/* Vibe Feed — visual language.
+   Reading surface first: one column, generous measure, hairline separators
+   instead of boxed cards. Chrome (engine switch, interests, sources) is
+   deliberately quieter than the feed itself. */
+
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
-  color: #1a1a1a;
-  background: #f7f7f8;
+  --ink: #14161c;
+  --ink-2: #383d47;
+  --ink-3: #5c626d;
+  --paper: #fbfaf8;
+  --surface: #ffffff;
+  --rule: #dbd6cb;
+  --rule-soft: #eae5db;
+  /* Separators stay hairlines; interactive borders need 3:1 to read as controls. */
+  --rule-strong: #918c81;
+  --accent: #4a3fd4;
+  --accent-ink: #3a30ad;
+  --accent-wash: #eae7fa;
+  --warn: #85520c;
+  --warn-wash: #fbf2e2;
+  --err: #98362a;
+  --err-wash: #fbeae7;
+  --ok: #2d6a49;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #eceae5;
+    --ink-2: #b4b1aa;
+    --ink-3: #85827b;
+    --paper: #14151a;
+    --surface: #1b1d23;
+    --rule: #2b2e36;
+    --rule-soft: #23262d;
+    --rule-strong: #6a6b74;
+    --accent: #9d95f5;
+    --accent-ink: #b6b0f8;
+    --accent-wash: #232145;
+    --warn: #d9a55f;
+    --warn-wash: #2a2317;
+    --err: #e0897a;
+    --err-wash: #2b1d1a;
+    --ok: #7ab894;
+  }
 }
 
 * {
@@ -13,118 +63,802 @@ body {
 }
 
 .app {
-  max-width: 720px;
+  max-width: 46rem;
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: 3rem 1.25rem 6rem;
 }
 
+/* ── header ─────────────────────────────────────────── */
+
 .app__header {
+  margin-bottom: 1.75rem;
+}
+
+.app__header-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.85rem;
+  border-bottom: 2px solid var(--ink);
 }
 
 .app__header h1 {
-  font-size: 22px;
+  font-family: var(--serif);
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
 .app__hint {
-  font-size: 12px;
-  color: #888;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.interests {
-  background: #eef2ff;
-  border: 1px solid #d7defb;
+/* ── engine picker ──────────────────────────────────── */
+
+.engine {
+  margin-top: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.engine__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.engine__status {
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+
+.engine__status strong {
+  color: var(--ink);
+}
+
+.engine__modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--rule-soft);
+  border-radius: 7px;
+}
+
+.engine__mode {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+  padding: 0.34rem 0.72rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.engine__mode:hover:not(.engine__mode--active) {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.engine__mode--active {
+  background: var(--surface);
+  color: var(--accent-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.07);
+}
+
+.engine__button {
+  appearance: none;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.36rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.engine__button:hover:not(:disabled) {
+  background: var(--accent-ink);
+}
+
+.engine__button:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.engine__note {
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.engine__note--error {
+  color: var(--err);
+}
+
+.engine__note--warn {
+  color: var(--warn);
+  background: var(--warn-wash);
+  padding: 0.5rem 0.7rem;
+  border-radius: 5px;
+}
+
+.engine__progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.engine__progress-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--rule);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.engine__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s;
+}
+
+.engine__progress-text {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── on-device model picker ─────────────────────────── */
+
+.engine__model {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Custom listbox (see ModelPicker.tsx): a native select's popup is drawn by the
+   OS, so it lands in system type next to the app's own. */
+
+.picker {
+  position: relative;
+}
+
+.picker__trigger {
+  appearance: none;
+  font: inherit;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.42rem 0.6rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s;
+}
+
+.picker__trigger:hover:not(:disabled) {
+  border-color: var(--ink-3);
+}
+
+.picker__trigger:focus-visible,
+.picker__trigger[aria-expanded="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.picker__trigger:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.picker__chevron {
+  flex: none;
+  color: var(--ink-3);
+  transition: transform 0.14s;
+}
+
+.picker__trigger[aria-expanded="true"] .picker__chevron {
+  transform: rotate(180deg);
+}
+
+.picker__value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.picker__list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
   border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-size: 14px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.picker__option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.picker__option[data-active="true"] {
+  background: var(--rule-soft);
+}
+
+.picker__option[aria-selected="true"] .picker__name {
+  color: var(--accent-ink);
+}
+
+/* Row fields: name leads, weight is the number you compare, note trails quietly. */
+.picker__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.picker__weight {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.picker__note {
+  font-size: 0.74rem;
+  color: var(--ink-3);
+  min-width: 0;
+}
+
+/* ── cloud key ──────────────────────────────────────── */
+
+.engine__cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.engine__cloud-providers {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.engine__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.engine__radio input {
+  accent-color: var(--accent);
+}
+
+.engine__cloud-key {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Shared by every labelled field in the engine block (model picker, cloud key). */
+.engine__field-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.engine__cloud-input {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.engine__cloud-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* ── interests ──────────────────────────────────────── */
+
+.interests {
+  margin: 1.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
 .interests__label {
-  font-weight: 600;
-  margin-right: 6px;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
 }
 
-.interests__value {
-  color: #555;
+.interests__input {
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.6rem 0;
+  border: 0;
+  border-bottom: 1.5px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink);
+  width: 100%;
+  transition: border-color 0.15s;
 }
+
+.interests__input::placeholder {
+  color: var(--ink-3);
+}
+
+.interests__input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.interests__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  appearance: none;
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0.24rem 0.6rem;
+  border-radius: 99px;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.chip--active {
+  background: var(--accent-wash);
+  border-color: transparent;
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.interests__cold-start {
+  font-size: 0.76rem;
+  color: var(--ink-3);
+  margin: 0;
+  font-style: italic;
+}
+
+/* ── rerank + sources ───────────────────────────────── */
+
+.rerank {
+  margin-top: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.rerank__button {
+  appearance: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.rerank__button:hover:not(:disabled) {
+  opacity: 0.82;
+}
+
+.rerank__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rerank__note {
+  font-size: 0.76rem;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.sources {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sources__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.sources__toggle input {
+  accent-color: var(--accent);
+}
+
+.sources__note {
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.sources__note code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--rule-soft);
+  padding: 0.05em 0.28em;
+  border-radius: 3px;
+}
+
+/* ── states ─────────────────────────────────────────── */
 
 .app__state {
-  color: #666;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  padding: 1.5rem 0;
 }
 
 .app__state--error {
-  color: #c0392b;
+  color: var(--err);
 }
+
+.app__errors {
+  margin-top: 1.1rem;
+  background: var(--err-wash);
+  border-radius: 7px;
+  padding: 0.75rem 0.9rem;
+}
+
+.app__errors-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--err);
+}
+
+.app__errors-dismiss {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.74rem;
+  color: var(--err);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.app__errors-dismiss:hover {
+  opacity: 0.75;
+}
+
+.app__errors-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.76rem;
+  color: var(--ink-2);
+}
+
+/* ── feed ───────────────────────────────────────────── */
 
 .feed {
   list-style: none;
+  margin: 2rem 0 0;
   padding: 0;
-  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e5e5e8;
-  border-radius: 8px;
-  padding: 12px 14px;
+  padding: 1.6rem 0;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .card__title {
+  font-family: var(--serif);
+  font-size: 1.22rem;
   font-weight: 600;
-  color: #1a1a1a;
+  line-height: 1.28;
+  letter-spacing: -0.011em;
+  color: var(--ink);
   text-decoration: none;
+  text-wrap: pretty;
 }
 
 .card__title:hover {
+  color: var(--accent-ink);
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .card__meta {
-  font-size: 12px;
-  color: #999;
-  margin: 4px 0;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
 }
 
 .card__summary {
-  font-size: 14px;
-  color: #333;
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  background: #f4f6f8;
-  border-radius: 6px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin: 0.15rem 0 0;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--rule);
 }
 
 .card__summary-label {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #6b7280;
-  margin-right: 8px;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  margin-bottom: 0.22rem;
 }
 
 .card__full {
-  margin-top: 8px;
-  font-size: 14px;
-  color: #444;
+  font-size: 0.86rem;
+  color: var(--ink-2);
+  margin-top: 0.2rem;
 }
 
-.card__full > summary {
+.card__full summary {
   cursor: pointer;
-  color: #6b7280;
-  font-size: 13px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.card__full summary:hover {
+  color: var(--accent-ink);
 }
 
 .card__full p {
-  margin: 8px 0 0;
+  line-height: 1.65;
+  margin: 0.6rem 0 0;
+}
+
+.card__rank {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+}
+
+.card__rank-why {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.card__rank-score {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.card__dupes {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.card__actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.card__vote {
+  appearance: none;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.28rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.7;
+  transition: opacity 0.12s, filter 0.12s, border-color 0.12s;
+}
+
+.card__vote:hover {
+  opacity: 1;
+  filter: none;
+  border-color: var(--ink-3);
+}
+
+.card__vote--up.card__vote--active {
+  opacity: 1;
+  filter: none;
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.card__vote--down.card__vote--active {
+  opacity: 1;
+  filter: none;
+  border-color: var(--err);
+  background: var(--err-wash);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* Link out to the standalone explainer page (public/how-it-works.html). */
+.app__explain {
+  align-self: flex-start;
+  margin-top: 0.7rem;
+  font-size: 0.8rem;
+  color: var(--accent-ink);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  padding-bottom: 1px;
+}
+
+.app__explain:hover {
+  border-bottom-color: var(--accent);
+}
+
+/* Score breakdown. The label next to it shows the semantic part alone, so without
+   this a fresh-but-irrelevant card looks self-contradictory. CSS-only: the same
+   numbers are in `title` and aria-label for keyboard and screen readers. */
+.card__rank-score {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--ink-3);
+}
+
+.card__rank-tip {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  min-width: 13.5rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+  font-size: 0.68rem;
   line-height: 1.5;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+}
+
+.card__rank-score:hover .card__rank-tip,
+.card__rank-score:focus-visible .card__rank-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.card__rank-tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+.card__rank-tip-row > :nth-child(2) {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.card__rank-tip-row > :last-child {
+  text-align: right;
+  color: var(--ink-2);
+}
+
+.card__rank-tip-row--total {
+  margin-top: 0.15rem;
+  padding-top: 0.28rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.card__rank-tip-row--total > :last-child {
+  color: var(--ink);
 }

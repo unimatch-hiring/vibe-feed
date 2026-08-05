@@ -10,3 +10,18 @@ export interface FeedItem {
   sourceId: string;    // source id from feeds.ts
   sourceTitle: string;
 }
+
+// A FeedItem with its ranking breakdown. The components are kept alongside the
+// final score so the UI can explain the ordering instead of asserting it.
+export interface ScoredItem {
+  item: FeedItem;
+  score: number;
+  semantic: number;
+  recency: number;
+  feedback: number;
+  duplicates: FeedItem[];   // collapsed near-duplicates; [] if none
+  why: string;              // short human-readable reason
+  // Cold start uses a different formula (recency at full weight, see rankFeed),
+  // so the UI must know which one produced `score` before explaining it.
+  cold: boolean;
+}
