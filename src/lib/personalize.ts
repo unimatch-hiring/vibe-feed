@@ -55,6 +55,20 @@ const W_BODY = 0.3;
 // in that gap and keeps the one-word chips on the positive side of the label.
 export const MATCH_THRESHOLD = 0.15;
 
+// Everything the reader sees is quoted to 2 decimals, so the label has to be decided
+// on the rounded value too. Comparing the raw number against the threshold while
+// printing a rounded one opened a window at 0.145–0.1499: the card showed "(0.15)"
+// — visibly the threshold — next to the label for being under it. Rounding first
+// costs 0.005 of threshold (the measured gap between on-topic ~0.18 and off-topic
+// <0.09 swallows that) and buys the guarantee that no card contradicts its own number.
+export const SCORE_DECIMALS = 2;
+
+/** The value the reader is shown — and therefore the one every label is decided on. */
+export function displayed(value: number): number {
+  const factor = 10 ** SCORE_DECIMALS;
+  return Math.round(value * factor) / factor;
+}
+
 // Disliked topics push the vector away, but at half weight — a dislike says
 // "less of this", not "the opposite of this".
 const DISLIKE_WEIGHT = 0.5;
@@ -232,6 +246,75 @@ export function personalize(
   return rankFeed(items, interests).map((s) => s.item);
 }
 
+/**
+ * One line of the score breakdown: a named factor, its weight, and what it
+ * contributed. All three are already rounded for display, and `contribution` is the
+ * product of the other two as shown — the row is arithmetically true as printed.
+ */
+export interface ScoreTerm {
+  label: string;
+  raw: number;
+  weight: number;
+  contribution: number;
+}
+
+/** The breakdown plus the total the rows actually add up to. */
+export interface ScoreBreakdown {
+  terms: ScoreTerm[];
+  /** Sum of the visible contributions — show THIS in the panel, not `scored.score`. */
+  total: number;
+}
+
+/**
+ * The arithmetic behind the score, laid out for the UI — every number already
+ * rounded to what the reader will see.
+ *
+ * Two things are deliberate here.
+ *
+ * Derived next to the scoring code rather than re-multiplied in the component: the
+ * cold-start path weights recency at 1 instead of W_RECENCY, so a breakdown rebuilt
+ * from the exported constants would disagree with the number it claims to explain.
+ *
+ * And rounded ONCE, at the source. Printing `raw.toFixed(2) × weight.toFixed(2) =
+ * contribution.toFixed(2)` from raw values produced visible nonsense on ~29% of rows
+ * (0.82 × 0.25 shown as 0.20) and a total that missed the sum of its own lines on
+ * ~25% of cards. Rounding the factors first, then multiplying those, makes the
+ * displayed arithmetic true by construction — `total` is the sum of the visible
+ * contributions, so what the panel shows always adds up. It can differ from
+ * `scored.score` by a cent; the panel is an explanation, and an explanation that
+ * doesn't add up explains nothing.
+ */
+export function explainScore(scored: ScoredItem): ScoreBreakdown {
+  const cold = scored.cold;
+  const terms: ScoreTerm[] = [];
+
+  const add = (label: string, raw: number, weight: number) => {
+    const r = displayed(raw);
+    const w = displayed(weight);
+    terms.push({ label, raw: r, weight: w, contribution: displayed(r * w) });
+  };
+
+  if (!cold) add("topic match", scored.semantic, W_SEMANTIC);
+
+  // Cold start leans on recency alone, at full weight — hence 1 here, not W_RECENCY.
+  add(
+    cold ? "freshness (only signal yet)" : "freshness",
+    scored.recency,
+    cold ? 1 : W_RECENCY
+  );
+
+  if (scored.feedback !== 0) {
+    add(
+      scored.feedback > 0 ? "you liked it" : "you disliked it",
+      scored.feedback,
+      W_FEEDBACK
+    );
+  }
+
+  const total = displayed(terms.reduce((sum, t) => sum + t.contribution, 0));
+  return { terms, total };
+}
+
 function itemText(item: FeedItem): string {
   return `${item.title} ${item.content.slice(0, CONTENT_CHARS)}`;
 }
@@ -281,6 +364,21 @@ function normalize(v: Float32Array): Float32Array {
   return v;
 }
 
+/**
+ * Exported for tests only: the semantic score can't be dialled in through rankFeed
+ * (it falls out of the embeddings), and the label/number agreement has to be probed
+ * right at the rounding boundary.
+ */
+export function explainForTest(
+  semantic: number,
+  publishedAt: number,
+  now: number,
+  feedback = 0,
+  cold = false
+): string {
+  return explain(semantic, publishedAt, now, feedback, cold);
+}
+
 function explain(
   semantic: number,
   publishedAt: number,
@@ -290,9 +388,18 @@ function explain(
 ): string {
   const parts: string[] = [];
 
+  // A weak match carries no number: below the threshold the cosine rounds to 0.00
+  // for most items, and a card reading "weak match (0.00)" looks like the ranking
+  // broke rather than like an ordinary off-topic article — that string was in fact
+  // the symptom of the clamping bug this module's tests still guard against. The
+  // score itself stays visible next to the label, so nothing is hidden.
+  // Decided on the rounded value, not the raw one — see `displayed`.
+  const shown = displayed(semantic);
+
   if (cold) parts.push("newest · no interests yet");
-  else if (semantic >= MATCH_THRESHOLD) parts.push(`matches your interests (${semantic.toFixed(2)})`);
-  else parts.push(`weak match (${semantic.toFixed(2)})`);
+  else if (shown >= MATCH_THRESHOLD)
+    parts.push(`matches your interests (${shown.toFixed(SCORE_DECIMALS)})`);
+  else parts.push("weak match");
 
   parts.push(formatAge(publishedAt, now));
   if (feedback > 0) parts.push("you liked this");

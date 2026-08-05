@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { fetchAllFeedsDetailed } from "./lib/rss";
 import { PROXIES } from "./lib/feeds";
 import { ModelPicker } from "./ModelPicker";
 import {
   rankFeed,
-  W_SEMANTIC,
-  W_RECENCY,
-  W_FEEDBACK,
+  explainScore,
+  SCORE_DECIMALS,
   type UserInterests,
 } from "./lib/personalize";
 import {
@@ -92,27 +91,6 @@ function toPlainText(html: string): string {
   return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
-// Plain-text version of the score breakdown, for `title` and screen readers.
-// The visual tooltip below is CSS-only and invisible to both.
-function scoreExplanation(s: ScoredItem): string {
-  // Cold start scores on recency alone at full weight, so the general formula
-  // would not add up to the number shown.
-  if (s.cold) {
-    return `no interests set, so freshness alone: ${s.recency.toFixed(2)} → score ${s.score.toFixed(2)}`;
-  }
-  const parts = [
-    `match ${s.semantic.toFixed(2)} x ${W_SEMANTIC} = ${(s.semantic * W_SEMANTIC).toFixed(3)}`,
-    `freshness ${s.recency.toFixed(2)} x ${W_RECENCY} = ${(s.recency * W_RECENCY).toFixed(3)}`,
-  ];
-  if (s.feedback !== 0) {
-    parts.push(
-      `your vote ${s.feedback > 0 ? "+1" : "-1"} x ${W_FEEDBACK} = ` +
-        `${(s.feedback * W_FEEDBACK).toFixed(3)}`
-    );
-  }
-  return `${parts.join(", ")} → score ${s.score.toFixed(2)}`;
-}
-
 function parseTopics(text: string): string[] {
   return text
     .split(",")
@@ -138,6 +116,8 @@ function Card({
   const item = scored.item;
   const fullText = useMemo(() => toPlainText(item.content), [item.content]);
   const [summary, setSummary] = useState<string>("…");
+  const [showMath, setShowMath] = useState(false);
+  const mathId = useId();
 
   useEffect(() => {
     let alive = true;
@@ -150,6 +130,9 @@ function Card({
   }, [fullText, summarizer]);
 
   const dupCount = scored.duplicates.length;
+  // The card and the panel must quote the same number, so both read the breakdown
+  // total rather than the raw score.
+  const breakdown = useMemo(() => explainScore(scored), [scored]);
 
   return (
     <li className="card">
@@ -164,53 +147,51 @@ function Card({
       </div>
 
       <div className="card__rank">
-        <span className="card__rank-why">{scored.why}</span>
-        {/* The label shows semantic alone, the number is the blended score — without
-            the breakdown a fresh-but-irrelevant card reads as a contradiction
-            ("weak match 0.01" next to 0.25). */}
-        <span
-          className="card__rank-score"
-          tabIndex={0}
-          aria-label={scoreExplanation(scored)}
-          title={scoreExplanation(scored)}
+        <button
+          type="button"
+          className="card__rank-why"
+          aria-expanded={showMath}
+          aria-controls={mathId}
+          onClick={() => setShowMath((v) => !v)}
         >
-          {scored.score.toFixed(2)}
-          <span className="card__rank-tip" role="tooltip">
-            {scored.cold ? (
-              <span className="card__rank-tip-row">
-                <span>freshness only</span>
-                <span>no interests set</span>
-                <span>{scored.recency.toFixed(3)}</span>
-              </span>
-            ) : (
-              <>
-                <span className="card__rank-tip-row">
-                  <span>match</span>
-                  <span>{scored.semantic.toFixed(2)} × {W_SEMANTIC}</span>
-                  <span>{(scored.semantic * W_SEMANTIC).toFixed(3)}</span>
-                </span>
-                <span className="card__rank-tip-row">
-                  <span>freshness</span>
-                  <span>{scored.recency.toFixed(2)} × {W_RECENCY}</span>
-                  <span>{(scored.recency * W_RECENCY).toFixed(3)}</span>
-                </span>
-              </>
-            )}
-            {scored.feedback !== 0 && (
-              <span className="card__rank-tip-row">
-                <span>your vote</span>
-                <span>{scored.feedback > 0 ? "+1" : "−1"} × {W_FEEDBACK}</span>
-                <span>{(scored.feedback * W_FEEDBACK).toFixed(3)}</span>
-              </span>
-            )}
-            <span className="card__rank-tip-row card__rank-tip-row--total">
-              <span>score</span>
-              <span />
-              <span>{scored.score.toFixed(2)}</span>
-            </span>
+          {scored.why}
+          <span className="card__rank-toggle" aria-hidden="true">
+            {showMath ? "hide math" : "show math"}
           </span>
+        </button>
+        <span className="card__rank-score">
+          {breakdown.total.toFixed(SCORE_DECIMALS)}
         </span>
       </div>
+
+      {showMath && (
+        <dl className="math" id={mathId}>
+          {breakdown.terms.map((term) => (
+            <div className="math__row" key={term.label}>
+              <dt className="math__label">{term.label}</dt>
+              <dd className="math__calc">
+                <span className="math__raw">{term.raw.toFixed(SCORE_DECIMALS)}</span>
+                <span className="math__op">×</span>
+                <span className="math__weight">{term.weight.toFixed(SCORE_DECIMALS)}</span>
+                <span className="math__op">=</span>
+                <span className="math__value">
+                  {term.contribution.toFixed(SCORE_DECIMALS)}
+                </span>
+              </dd>
+            </div>
+          ))}
+          <div className="math__row math__row--total">
+            <dt className="math__label">score</dt>
+            <dd className="math__calc">
+              <span className="math__value">{breakdown.total.toFixed(SCORE_DECIMALS)}</span>
+            </dd>
+          </div>
+          <p className="math__note">
+            Weights are fixed: what you're interested in counts for most, how fresh it
+            is breaks ties, a 👍 or 👎 nudges from there.
+          </p>
+        </dl>
+      )}
 
       {dupCount > 0 && (
         <div className="card__dupes">

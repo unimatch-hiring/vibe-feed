@@ -717,9 +717,94 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* The why line doubles as the disclosure for the score breakdown. Styled flat so it
+   reads as the same caption it was before, not as a second button competing with the
+   vote controls below it. */
 .card__rank-why {
   min-width: 0;
   overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card__rank-toggle {
+  color: var(--accent-ink);
+  border-bottom: 1px dotted currentColor;
+  white-space: nowrap;
+}
+
+.card__rank-why:hover .card__rank-toggle,
+.card__rank-why:focus-visible .card__rank-toggle {
+  border-bottom-style: solid;
+}
+
+.math {
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.7rem;
+  background: var(--accent-wash);
+  border-radius: 4px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.67rem;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.math__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.math__label {
+  margin: 0;
+}
+
+.math__calc {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.math__op {
+  color: var(--ink-3);
+}
+
+.math__value {
+  color: var(--ink);
+  min-width: 2.6em;
+  text-align: right;
+}
+
+.math__row--total {
+  border-top: 1px solid var(--rule);
+  padding-top: 0.28rem;
+  margin-top: 0.1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.math__note {
+  margin: 0.15rem 0 0;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--ink-3);
 }
 
 .card__rank-score {
@@ -796,69 +881,3 @@ body {
   border-bottom-color: var(--accent);
 }
 
-/* Score breakdown. The label next to it shows the semantic part alone, so without
-   this a fresh-but-irrelevant card looks self-contradictory. CSS-only: the same
-   numbers are in `title` and aria-label for keyboard and screen readers. */
-.card__rank-score {
-  position: relative;
-  cursor: help;
-  border-bottom: 1px dotted var(--ink-3);
-}
-
-.card__rank-tip {
-  position: absolute;
-  bottom: calc(100% + 0.45rem);
-  right: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.55rem 0.7rem;
-  min-width: 13.5rem;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
-  font-size: 0.68rem;
-  line-height: 1.5;
-  text-align: left;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s;
-}
-
-.card__rank-score:hover .card__rank-tip,
-.card__rank-score:focus-visible .card__rank-tip {
-  opacity: 1;
-  visibility: visible;
-}
-
-.card__rank-tip-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.7rem;
-  white-space: nowrap;
-  color: var(--ink-3);
-}
-
-.card__rank-tip-row > :nth-child(2) {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
-.card__rank-tip-row > :last-child {
-  text-align: right;
-  color: var(--ink-2);
-}
-
-.card__rank-tip-row--total {
-  margin-top: 0.15rem;
-  padding-top: 0.28rem;
-  border-top: 1px solid var(--rule);
-  color: var(--ink);
-  font-weight: 650;
-}
-
-.card__rank-tip-row--total > :last-child {
-  color: var(--ink);
-}

@@ -8,6 +8,9 @@ import {
   dedupe,
   recencyScore,
   interestVector,
+  explainScore,
+  displayed,
+  explainForTest,
   EMPTY_INTERESTS,
   type UserInterests,
 } from "./personalize";
@@ -20,6 +23,10 @@ const NOW = Date.parse("2026-06-16T12:00:00Z");
 // interests" rather than "weak match". A chip's own article must clear it, or the UI
 // disowns the very match it just ranked first.
 const MATCH_LABEL_FLOOR = 0.15;
+
+// The rounding the UI applies, taken from the module rather than reimplemented —
+// a local copy would let the two drift and still pass.
+const round2 = (v: number) => displayed(v);
 
 // The fixture IS public/mock-feed.xml, parsed at test time — all 8 items with their
 // full content:encoded bodies. An abridged hand-copied fixture is what let the
@@ -343,6 +350,116 @@ describe("rankFeed", () => {
         expect(s.why.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("quotes a number only when the match is strong enough to mean something", () => {
+    const scored = rankFeed(MOCK_ITEMS, interests({ topics: ["webgpu"] }), NOW);
+    const weak = scored.filter((s) => s.semantic < MATCH_LABEL_FLOOR);
+    const strong = scored.filter((s) => s.semantic >= MATCH_LABEL_FLOOR);
+
+    // Both halves must be exercised, or this passes by testing nothing.
+    expect(weak.length).toBeGreaterThan(0);
+    expect(strong.length).toBeGreaterThan(0);
+
+    // "weak match (0.00)" was the visible symptom of the clamping bug two tests
+    // above, so a bare 0.00 on a card reads as breakage rather than as an ordinary
+    // off-topic article. The score stays on the card either way.
+    for (const s of weak) {
+      expect(s.why).toContain("weak match");
+      expect(s.why).not.toMatch(/weak match \(/);
+    }
+    for (const s of strong) {
+      expect(s.why).toContain(`(${s.semantic.toFixed(2)})`);
+    }
+  });
+
+  // Everything the panel prints has to be true AS PRINTED. Rounding each raw value
+  // independently broke that on ~29% of rows (0.82 × 0.25 rendered as 0.20) and made
+  // the total disagree with its own lines on ~25% of cards.
+  const ALL_CASES = [
+    EMPTY_INTERESTS,
+    interests({ topics: ["webgpu"] }),
+    interests({ topics: ["webgpu"], liked: [rss.id], disliked: [corsProxy.id] }),
+    interests({ liked: [webgpu.id] }),
+    interests({ topics: ["cors", "rss"], disliked: [webgpu.id] }),
+  ];
+
+  it("prints arithmetic that is true at the shown precision", () => {
+    for (const i of ALL_CASES) {
+      for (const s of rankFeed(MOCK_ITEMS, i, NOW)) {
+        const { terms, total } = explainScore(s);
+
+        for (const t of terms) {
+          // Each row multiplies out exactly as the reader sees it.
+          expect(t.contribution).toBe(round2(t.raw * t.weight));
+          // And every number is already at display precision — no hidden digits.
+          expect(t.raw).toBe(round2(t.raw));
+          expect(t.weight).toBe(round2(t.weight));
+          expect(t.label.length).toBeGreaterThan(0);
+        }
+
+        // The total is the sum of the visible lines, not a separately rounded number.
+        expect(total).toBe(round2(terms.reduce((a, t) => a + t.contribution, 0)));
+        // Still an honest explanation of the real score: rounding may cost a cent.
+        expect(Math.abs(total - s.score)).toBeLessThanOrEqual(0.02);
+      }
+    }
+  });
+
+  it("never labels a card as weak while showing a number that clears the bar", () => {
+    // The reported bug: "weak match (0.15)" at threshold 0.15. The label was decided
+    // on the raw value while the number was rounded, so 0.1476 printed as 0.15.
+    for (const i of ALL_CASES) {
+      for (const s of rankFeed(MOCK_ITEMS, i, NOW)) {
+        const shown = round2(s.semantic);
+        if (s.cold) continue;
+
+        if (shown >= MATCH_LABEL_FLOOR) {
+          expect(s.why).toContain("matches your interests");
+          expect(s.why).toContain(`(${shown.toFixed(2)})`);
+        } else {
+          expect(s.why).toContain("weak match");
+        }
+      }
+    }
+  });
+
+  it("keeps the label consistent across the whole boundary neighbourhood", () => {
+    // Synthetic sweep: the fixture never lands in the half-percent window where the
+    // bug lived (0.145–0.1499 printed as "0.15" while being labelled weak), so drive
+    // the real label writer with crafted scores instead of hoping the feed hits it.
+    let sawStrong = false;
+    let sawWeak = false;
+
+    for (let raw = 0.13; raw <= 0.17; raw += 0.0007) {
+      const why = explainForTest(raw, NOW - HOUR, NOW);
+      const printed = round2(raw).toFixed(2);
+
+      if (why.includes("matches your interests")) {
+        sawStrong = true;
+        // The number it prints must itself clear the bar the label claims.
+        expect(Number(printed)).toBeGreaterThanOrEqual(MATCH_LABEL_FLOOR);
+        expect(why).toContain(`(${printed})`);
+      } else {
+        sawWeak = true;
+        expect(why).toContain("weak match");
+        // The reported bug: a weak card whose visible number reaches the threshold.
+        expect(Number(printed)).toBeLessThan(MATCH_LABEL_FLOOR);
+      }
+    }
+
+    // Both sides of the boundary were actually exercised.
+    expect(sawStrong).toBe(true);
+    expect(sawWeak).toBe(true);
+  });
+
+  it("names feedback only when the reader actually voted", () => {
+    const voted = interests({ topics: ["webgpu"], liked: [rss.id] });
+    const byId = new Map(rankFeed(MOCK_ITEMS, voted, NOW).map((s) => [s.item.id, s]));
+
+    const labels = (id: string) => explainScore(byId.get(id)!).terms.map((t) => t.label);
+    expect(labels(rss.id)).toContain("you liked it");
+    expect(labels(webgpu.id).some((l) => l.startsWith("you "))).toBe(false);
   });
 
   it("is stable for ties (equal scores keep input order)", () => {
