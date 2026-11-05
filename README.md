@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/unimatch-hiring/vibe-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/unimatch-hiring/vibe-feed/actions/workflows/ci.yml)
 
-**Live demo:** https://unimatch-hiring.github.io/vibe-feed/
-**Play with the ranking:** https://unimatch-hiring.github.io/vibe-feed/how-it-works.html
+**Live demo:** https://vibe-feed-c7c.pages.dev/vibe-feed/
+**Play with the ranking:** https://vibe-feed-c7c.pages.dev/vibe-feed/how-it-works.html
 
 A news feed that puts the articles you care about on top. Everything runs in your
 browser. There is no server.
@@ -51,7 +51,7 @@ the feeds. Step 5 is a bonus — switch it off and the feed still works.
 # How the ranking works
 
 Three ideas. Each one fits on paper, and there's an
-[interactive version](https://unimatch-hiring.github.io/vibe-feed/how-it-works.html)
+[interactive version](https://vibe-feed-c7c.pages.dev/vibe-feed/how-it-works.html)
 where you can drag the vectors around and watch the numbers move.
 
 ## Idea 1 — a text becomes a list of numbers
@@ -123,7 +123,7 @@ article and a one-line link about the same thing should score the same. Using th
 angle throws length away for free.
 
 If you'd rather see this than read it, the
-[interactive page](https://unimatch-hiring.github.io/vibe-feed/how-it-works.html)
+[interactive page](https://vibe-feed-c7c.pages.dev/vibe-feed/how-it-works.html)
 lets you drag an arrow around and watch the angle and the number change together.
 
 ## Idea 3 — your profile is an average

@@ -1,5 +1,8 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
+# The app is served from Cloudflare Pages, an origin of its own. unimatch-hiring.github.io
+# is shared by every Pages site of the organisation, and this app keeps the reader's LLM
+# API key in localStorage, which any of them could read. The old address only redirects.
 on:
   push:
     branches: [main]
@@ -7,16 +10,13 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# Allow one concurrent deployment, cancel in-progress runs.
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  cloudflare:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,16 +26,41 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+      # Still under /vibe-feed/, so every old link maps onto the new host path for path.
+      - run: |
+          mkdir -p site/vibe-feed
+          cp -R dist/. site/vibe-feed/
+          echo '/ /vibe-feed/ 302' > site/_redirects
+      - name: Publish to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set, so this commit was not published"
+            exit 0
+          fi
+          npx -y wrangler@4 pages deploy site --project-name vibe-feed --branch main --commit-hash "$SHA"
 
-  deploy:
-    needs: build
+  redirect:
+    needs: cloudflare
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      # Pages answers every unknown path with 404.html, so the same page catches deep links.
+      - run: |
+          mkdir redirect
+          cp .github/pages-redirect/index.html redirect/index.html
+          cp .github/pages-redirect/index.html redirect/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: redirect
       - id: deployment
         uses: actions/deploy-pages@v4
